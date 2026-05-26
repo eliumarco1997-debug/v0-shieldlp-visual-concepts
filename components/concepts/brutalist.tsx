@@ -3,25 +3,34 @@
 import { useState } from "react"
 import { Shield, AlertTriangle, Zap, ChevronRight, ExternalLink, Activity } from "lucide-react"
 import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip, ReferenceLine } from "recharts"
-
-const priceData = [
-  { time: "00:00", price: 2100, il: -1.2 },
-  { time: "04:00", price: 2150, il: -1.8 },
-  { time: "08:00", price: 2080, il: -0.9 },
-  { time: "12:00", price: 2200, il: -2.4 },
-  { time: "16:00", price: 2180, il: -2.1 },
-  { time: "20:00", price: 2250, il: -3.2 },
-  { time: "24:00", price: 2300, il: -3.8 },
-]
-
-const positions = [
-  { id: 1, pair: "ETH/USDC", value: "$45,230", il: "-$892", ilPercent: "-1.97%", fees: "+$1,245", status: "UNPROTECTED" },
-  { id: 2, pair: "WBTC/ETH", value: "$32,100", il: "-$456", ilPercent: "-1.42%", fees: "+$890", status: "PROTECTED" },
-  { id: 3, pair: "ARB/ETH", value: "$12,500", il: "-$234", ilPercent: "-1.87%", fees: "+$456", status: "UNPROTECTED" },
-]
+import { useCryptoData } from "@/hooks/useCryptoData"
 
 export function BrutalistDashboard() {
   const [priceChange, setPriceChange] = useState(25)
+  const data = useCryptoData()
+
+  const ethPriceFormatted = data.prices.eth
+    ? data.prices.eth.toLocaleString("en-US", { maximumFractionDigits: 0 })
+    : "---"
+
+  const unprotectedCount = data.positions.filter((p) => p.status !== "hedged").length
+
+  if (data.loading) {
+    return (
+      <div className="min-h-screen bg-[#0d0d0d] text-[#e5e5e5] font-mono flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <div className="w-14 h-14 bg-[#ff6b35] flex items-center justify-center mx-auto">
+            <Shield className="w-8 h-8 text-black animate-pulse" strokeWidth={3} />
+          </div>
+          <p className="text-2xl font-black tracking-tighter uppercase text-[#ff6b35]">// LOADING_DATA...</p>
+          <p className="text-xs text-[#666] tracking-[0.3em] uppercase">FETCHING_LIVE_PRICES // COINGECKO_API</p>
+          <div className="w-48 h-1 bg-[#1a1a1a] mx-auto mt-4">
+            <div className="h-full bg-[#ff6b35] animate-pulse" style={{ width: "60%" }} />
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-[#0d0d0d] text-[#e5e5e5] font-mono">
@@ -41,6 +50,10 @@ export function BrutalistDashboard() {
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2 px-4 py-2 bg-[#1a1a1a] border-2 border-[#333]">
               <div className="w-3 h-3 bg-[#22c55e] animate-pulse" />
+              <span className="text-xs tracking-wider">LIVE // ETH ${ethPriceFormatted}</span>
+            </div>
+            <div className="flex items-center gap-2 px-4 py-2 bg-[#1a1a1a] border-2 border-[#333]">
+              <div className="w-3 h-3 bg-[#22c55e] animate-pulse" />
               <span className="text-xs tracking-wider">MAINNET</span>
             </div>
             <button className="flex items-center gap-3 px-5 py-3 bg-[#ff6b35] text-black font-bold uppercase tracking-wider hover:bg-[#ff8555] transition-colors">
@@ -51,24 +64,26 @@ export function BrutalistDashboard() {
         </header>
 
         {/* Warning Banner */}
+        {unprotectedCount > 0 && (
         <div className="mb-8 p-4 bg-[#ff6b35]/10 border-l-4 border-[#ff6b35] flex items-center gap-4">
           <AlertTriangle className="w-6 h-6 text-[#ff6b35]" />
           <div className="flex-1">
             <p className="text-sm font-bold text-[#ff6b35] uppercase tracking-wider">// ALERTA DE RIESGO</p>
-            <p className="text-xs text-[#888]">2 posiciones sin cobertura con IL {'>'} 1.5%. Considera activar protección.</p>
+            <p className="text-xs text-[#888]">{unprotectedCount} posicion{unprotectedCount !== 1 ? "es" : ""} sin cobertura. Considera activar protección.</p>
           </div>
           <button className="px-4 py-2 bg-[#ff6b35] text-black font-bold text-xs uppercase tracking-wider">
             VER DETALLES
           </button>
         </div>
+        )}
 
         {/* Stats Grid - Brutalist Style */}
         <div className="grid grid-cols-4 gap-0 mb-8 border-2 border-[#333]">
           {[
-            { label: "VALOR_TOTAL", value: "$89,830", sub: "LP POSITIONS", color: "#e5e5e5" },
-            { label: "IMPERMANENT_LOSS", value: "-$1,582", sub: "-1.76% TOTAL", color: "#ef4444" },
-            { label: "FEES_EARNED", value: "+$2,591", sub: "+2.88% APR", color: "#22c55e" },
-            { label: "HODL_VALUE", value: "$91,412", sub: "DELTA: -$1,582", color: "#ff6b35" },
+            { label: "VALOR_TOTAL", value: data.stats.totalValue, sub: data.stats.totalChange, color: "#e5e5e5" },
+            { label: "IMPERMANENT_LOSS", value: data.stats.impermanentLoss, sub: data.stats.ilChange, color: "#ef4444" },
+            { label: "FEES_EARNED", value: data.stats.feesEarned, sub: data.stats.feesChange, color: "#22c55e" },
+            { label: "HODL_VALUE", value: data.stats.hodlValue, sub: `DELTA: ${data.stats.impermanentLoss}`, color: "#ff6b35" },
           ].map((stat, i) => (
             <div
               key={i}
@@ -109,7 +124,7 @@ export function BrutalistDashboard() {
             </div>
             <div className="p-6 h-72">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={priceData}>
+                <AreaChart data={data.chartData}>
                   <defs>
                     <linearGradient id="brutalistGradient" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#ff6b35" stopOpacity={0.3} />
@@ -208,7 +223,7 @@ export function BrutalistDashboard() {
             <div className="flex items-center gap-3">
               <Zap className="w-5 h-5 text-[#ff6b35]" />
               <span className="text-sm font-bold uppercase tracking-wider">ACTIVE_POSITIONS</span>
-              <span className="px-2 py-0.5 bg-[#333] text-xs font-bold">{positions.length}</span>
+              <span className="px-2 py-0.5 bg-[#333] text-xs font-bold">{data.positions.length}</span>
             </div>
             <button className="flex items-center gap-2 text-xs text-[#666] hover:text-[#ff6b35] transition-colors uppercase tracking-wider">
               <ExternalLink className="w-4 h-4" />
@@ -229,11 +244,14 @@ export function BrutalistDashboard() {
               </tr>
             </thead>
             <tbody>
-              {positions.map((pos, i) => (
+              {data.positions.map((pos, i) => {
+                const displayStatus = pos.status === "hedged" ? "PROTECTED" : "UNPROTECTED"
+                const isProtected = displayStatus === "PROTECTED"
+                return (
                 <tr 
                   key={pos.id} 
                   className={`border-b-2 border-[#222] hover:bg-[#1a1a1a] transition-colors ${
-                    pos.status === "UNPROTECTED" ? "bg-[#ff6b35]/5" : ""
+                    !isProtected ? "bg-[#ff6b35]/5" : ""
                   }`}
                 >
                   <td className="p-4">
@@ -254,24 +272,25 @@ export function BrutalistDashboard() {
                   <td className="text-right p-4 font-bold text-[#22c55e]">{pos.fees}</td>
                   <td className="text-right p-4">
                     <span className={`px-3 py-1 text-xs font-black uppercase tracking-wider ${
-                      pos.status === "PROTECTED" 
+                      isProtected 
                         ? "bg-[#22c55e] text-black" 
                         : "bg-[#ff6b35]/20 text-[#ff6b35] border border-[#ff6b35]"
                     }`}>
-                      {pos.status}
+                      {displayStatus}
                     </span>
                   </td>
                   <td className="text-right p-4">
                     <button className={`px-4 py-2 text-xs font-bold uppercase tracking-wider border-2 transition-colors ${
-                      pos.status === "PROTECTED"
+                      isProtected
                         ? "border-[#333] text-[#666] hover:border-[#e5e5e5] hover:text-[#e5e5e5]"
                         : "border-[#ff6b35] text-[#ff6b35] hover:bg-[#ff6b35] hover:text-black"
                     }`}>
-                      {pos.status === "PROTECTED" ? "MANAGE" : "PROTECT"}
+                      {isProtected ? "MANAGE" : "PROTECT"}
                     </button>
                   </td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         </div>

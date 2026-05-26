@@ -1,26 +1,42 @@
 "use client"
 
 import { useState } from "react"
-import { Shield, Wallet, ChevronDown, ArrowUpRight, ArrowDownRight, BarChart3, PieChart, LineChart } from "lucide-react"
+import { Shield, Wallet, ChevronDown, ArrowUpRight, ArrowDownRight, BarChart3, PieChart, LineChart, Loader2 } from "lucide-react"
 import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip, BarChart, Bar } from "recharts"
-
-const priceData = [
-  { time: "Jan", price: 2100, il: -1.2 },
-  { time: "Feb", price: 2150, il: -1.8 },
-  { time: "Mar", price: 2080, il: -0.9 },
-  { time: "Apr", price: 2200, il: -2.4 },
-  { time: "May", price: 2180, il: -2.1 },
-  { time: "Jun", price: 2250, il: -3.2 },
-]
-
-const positions = [
-  { id: 1, pair: "ETH/USDC", value: "$45,230.00", il: "-$892.45", fees: "+$1,245.80", holdValue: "$46,122.45", status: "unhedged" },
-  { id: 2, pair: "WBTC/ETH", value: "$32,100.00", il: "-$456.20", fees: "+$890.15", holdValue: "$32,556.20", status: "hedged" },
-  { id: 3, pair: "ARB/ETH", value: "$12,500.00", il: "-$234.10", fees: "+$456.90", holdValue: "$12,734.10", status: "unhedged" },
-]
+import { useCryptoData } from "@/hooks/useCryptoData"
 
 export function InstitutionalDashboard() {
   const [selectedTimeframe, setSelectedTimeframe] = useState("1M")
+  const data = useCryptoData()
+
+  // Helper: parse sign from change string to determine arrow direction
+  const isPositiveChange = (change: string): boolean => {
+    const trimmed = change.trim()
+    if (trimmed.startsWith("+")) return true
+    if (trimmed.startsWith("-")) return false
+    // If no sign, check for Δ prefix (hodlValue delta)
+    if (trimmed.includes("-")) return false
+    return true
+  }
+
+  // Build metrics from live stats
+  const metrics = [
+    { label: "VALOR TOTAL EN LP", value: data.stats.totalValue, change: data.stats.totalChange, positive: isPositiveChange(data.stats.totalChange) },
+    { label: "IMPERMANENT LOSS", value: data.stats.impermanentLoss, change: data.stats.ilChange, positive: false },
+    { label: "FEES ACUMULADOS", value: data.stats.feesEarned, change: data.stats.feesChange, positive: isPositiveChange(data.stats.feesChange) },
+    { label: "VALOR SI HODL", value: data.stats.hodlValue, change: `Δ ${data.stats.impermanentLoss}`, positive: false },
+  ]
+
+  if (data.loading) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0a] text-[#fafafa] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-8 h-8 text-[#10b981] animate-spin" />
+          <p className="text-sm text-[#666] tracking-wide">Cargando datos del mercado...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-[#fafafa]">
@@ -38,6 +54,20 @@ export function InstitutionalDashboard() {
           </div>
           
           <div className="flex items-center gap-6">
+            {/* Live indicator */}
+            <div className="flex items-center gap-3 px-4 py-2 border border-[#1a1a1a] bg-[#111]">
+              <div className="w-1.5 h-1.5 rounded-full bg-[#10b981] animate-pulse" />
+              <span className="text-xs text-[#666] tracking-wider">ETH</span>
+              <span className="text-sm font-mono text-[#fafafa]">
+                ${data.prices.eth.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+              {data.lastUpdated && (
+                <span className="text-xs text-[#444] font-mono">
+                  {data.lastUpdated.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}
+                </span>
+              )}
+            </div>
+
             <nav className="flex gap-8 text-sm text-[#666]">
               <a href="#" className="text-[#fafafa] border-b border-[#10b981] pb-1">Dashboard</a>
               <a href="#" className="hover:text-[#fafafa] transition-colors">Posiciones</a>
@@ -55,12 +85,7 @@ export function InstitutionalDashboard() {
 
         {/* Key Metrics */}
         <div className="grid grid-cols-4 gap-px bg-[#1a1a1a] mb-12">
-          {[
-            { label: "VALOR TOTAL EN LP", value: "$89,830.00", change: "+12.4%", positive: true },
-            { label: "IMPERMANENT LOSS", value: "-$1,582.75", change: "-1.8%", positive: false },
-            { label: "FEES ACUMULADOS", value: "+$2,592.85", change: "+8.7%", positive: true },
-            { label: "VALOR SI HODL", value: "$91,412.75", change: "Δ -$1,582.75", positive: false },
-          ].map((stat, i) => (
+          {metrics.map((stat, i) => (
             <div key={i} className="bg-[#0a0a0a] p-8">
               <p className="text-xs text-[#666] tracking-[0.2em] mb-4">{stat.label}</p>
               <p className="text-3xl font-light tracking-tight mb-2 font-mono">{stat.value}</p>
@@ -104,7 +129,7 @@ export function InstitutionalDashboard() {
             </div>
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={priceData}>
+                <AreaChart data={data.chartData}>
                   <defs>
                     <linearGradient id="institutionalGradient" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#10b981" stopOpacity={0.2} />
@@ -225,7 +250,7 @@ export function InstitutionalDashboard() {
               </tr>
             </thead>
             <tbody>
-              {positions.map((pos) => (
+              {data.positions.map((pos) => (
                 <tr key={pos.id} className="border-b border-[#1a1a1a] hover:bg-[#111] transition-colors">
                   <td className="p-6">
                     <span className="font-mono">{pos.pair}</span>

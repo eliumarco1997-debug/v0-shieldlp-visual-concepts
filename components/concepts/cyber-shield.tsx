@@ -3,25 +3,32 @@
 import { useState } from "react"
 import { Shield, Wallet, TrendingUp, TrendingDown, Activity, Zap, ChevronDown, ExternalLink } from "lucide-react"
 import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer, Tooltip } from "recharts"
-
-const priceData = [
-  { time: "00:00", price: 2100, il: -1.2 },
-  { time: "04:00", price: 2150, il: -1.8 },
-  { time: "08:00", price: 2080, il: -0.9 },
-  { time: "12:00", price: 2200, il: -2.4 },
-  { time: "16:00", price: 2180, il: -2.1 },
-  { time: "20:00", price: 2250, il: -3.2 },
-  { time: "24:00", price: 2300, il: -3.8 },
-]
-
-const positions = [
-  { id: 1, pair: "ETH/USDC", value: "$45,230", il: "-$892", fees: "+$1,245", apr: "24.5%", status: "active" },
-  { id: 2, pair: "WBTC/ETH", value: "$32,100", il: "-$456", fees: "+$890", apr: "18.2%", status: "hedged" },
-  { id: 3, pair: "ARB/ETH", value: "$12,500", il: "-$234", fees: "+$456", apr: "32.1%", status: "active" },
-]
+import { useCryptoData } from "@/hooks/useCryptoData"
 
 export function CyberShieldDashboard() {
   const [selectedPosition, setSelectedPosition] = useState<number | null>(null)
+  const data = useCryptoData()
+
+  if (data.loading) {
+    return (
+      <div className="min-h-screen bg-[#030712] text-white flex items-center justify-center relative overflow-hidden">
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(6,182,212,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(6,182,212,0.03)_1px,transparent_1px)] bg-[size:50px_50px]" />
+        <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 via-transparent to-fuchsia-500/5" />
+        <div className="absolute top-20 left-20 w-96 h-96 bg-cyan-500/20 rounded-full blur-[120px] animate-pulse" />
+        <div className="absolute bottom-20 right-20 w-96 h-96 bg-fuchsia-500/20 rounded-full blur-[120px] animate-pulse" />
+        <div className="relative z-10 text-center">
+          <Shield className="w-16 h-16 text-cyan-400 mx-auto mb-4 animate-pulse" />
+          <p className="text-lg text-cyan-400 animate-pulse">Cargando datos...</p>
+        </div>
+      </div>
+    )
+  }
+
+  const formattedUpdateTime = data.lastUpdated
+    ? data.lastUpdated.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })
+    : "--:--"
+
+  const ethPriceFormatted = data.prices.eth.toLocaleString("en-US", { maximumFractionDigits: 0 })
 
   return (
     <div className="min-h-screen bg-[#030712] text-white overflow-hidden relative">
@@ -54,15 +61,21 @@ export function CyberShieldDashboard() {
             <span className="text-sm">0x7a3d...8f2e</span>
             <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
           </button>
+
+          {/* Live Indicator */}
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-800/60 border border-slate-700/50 backdrop-blur-xl">
+            <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="text-xs text-slate-300">ETH ${ethPriceFormatted} · Actualizado {formattedUpdateTime}</span>
+          </div>
         </header>
 
         {/* Stats Grid */}
         <div className="grid grid-cols-4 gap-4 mb-8">
           {[
-            { label: "Valor Total", value: "$89,830", change: "+12.4%", icon: TrendingUp, color: "cyan" },
-            { label: "Impermanent Loss", value: "-$1,582", change: "-2.1%", icon: TrendingDown, color: "fuchsia" },
-            { label: "Fees Ganados", value: "+$2,591", change: "+8.7%", icon: Activity, color: "emerald" },
-            { label: "Si Solo HODL", value: "$91,412", change: "vs LP", icon: Zap, color: "amber" },
+            { label: "Valor Total", value: data.stats.totalValue, change: data.stats.totalChange, icon: TrendingUp, color: "cyan" },
+            { label: "Impermanent Loss", value: data.stats.impermanentLoss, change: data.stats.ilChange, icon: TrendingDown, color: "fuchsia" },
+            { label: "Fees Ganados", value: data.stats.feesEarned, change: data.stats.feesChange, icon: Activity, color: "emerald" },
+            { label: "Si Solo HODL", value: data.stats.hodlValue, change: "vs LP", icon: Zap, color: "amber" },
           ].map((stat, i) => (
             <div
               key={i}
@@ -101,7 +114,7 @@ export function CyberShieldDashboard() {
             </div>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={priceData}>
+                <AreaChart data={data.chartData}>
                   <defs>
                     <linearGradient id="cyberGradient" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#06b6d4" stopOpacity={0.4} />
@@ -193,7 +206,7 @@ export function CyberShieldDashboard() {
                 </tr>
               </thead>
               <tbody>
-                {positions.map((pos) => (
+                {data.positions.map((pos) => (
                   <tr
                     key={pos.id}
                     onClick={() => setSelectedPosition(pos.id)}
